@@ -7,6 +7,7 @@ from io import BytesIO
 import io
 import csv
 from fpdf import FPDF
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -17,7 +18,8 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # --- Streamlit Config ---
 st.set_page_config(page_title="GenAI Test Case Generator", layout="centered")
-st.title("🧪 Guidewire PolicyCenter – GenAI Test Case Generator")
+st.title("🚀 Guidewire PolicyCenter – GenAI Test Case Generator")
+
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -40,6 +42,13 @@ if not st.session_state.logged_in:
 
 if st.session_state.logged_in:
 
+    # --- SideBar Logout --- #
+    # with st.sidebar:
+    #     st.success(f"Logged in as: {VALID_USERNAME}")
+    #     if st.button("Logout"):
+    #         st.session_state.clear()
+    #         st.rerun()
+
     # --- Gemini Model Config ---
     genai.configure(api_key=GOOGLE_API_KEY)
     model = genai.GenerativeModel("gemini-2.0-flash-exp")
@@ -49,9 +58,27 @@ if st.session_state.logged_in:
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
-        for line in text.splitlines():
-            safe_line = line.encode("latin-1", errors="replace").decode("latin-1")
-            pdf.multi_cell(0, 10, safe_line)
+
+        lines = text.strip().splitlines()
+
+        if any("|" in line for line in lines):
+            for line in lines:
+                if "|" not in line:
+                    pdf.multi_cell(0,10,line)
+                else:
+                    coloumn = [col.strip() for col in line.split("|") if col.strip()]
+                    for col in coloumn:
+                        pdf.cell(40, 10, txt=col, border= 1)
+                    pdf.ln()
+        else:
+            for line in lines:
+                pdf.multi_cell(0,10,line)
+
+
+
+        # for line in text.splitlines():
+        #     safe_line = line.encode("latin-1", errors="replace").decode("latin-1")
+        #     pdf.multi_cell(0, 10, safe_line)
         buffer = BytesIO()
         pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
         buffer.write(pdf_output)
@@ -66,6 +93,7 @@ if st.session_state.logged_in:
     st.subheader("📥 Upload or Paste Use Case")
     usecase_file = st.file_uploader("Upload Use Case (.txt)", type=["txt"])
     usecase_text = st.text_area("Or paste use case directly")
+    today = datetime.now().strftime("%B %d,%Y")
 
     final_usecase = ""
     if usecase_file:
@@ -76,7 +104,7 @@ if st.session_state.logged_in:
     # --- Manual BRD Generation ---
     if final_usecase and st.button("📝 Generate BRD Manually"):
         with st.spinner("Generating BRD from use case..."):
-            brd_prompt = f"Create a detailed Business Requirements Document (BRD) based on the following Guidewire PolicyCenter use case:\n\n{final_usecase}"
+            brd_prompt = f"Create a detailed Business Requirements Document (BRD) with today's date ({today}) based on the following Guidewire PolicyCenter use case:\n\n{final_usecase}"
             response = model.generate_content(brd_prompt)
             st.session_state.brd_text = (
                 response.candidates[0].content.parts[0].text.strip()
@@ -108,22 +136,24 @@ if st.session_state.logged_in:
     You are a QA test case generator for Guidewire PolicyCenter. Based on the BRD below, do the following:
 
     1. Automatically detect the transaction type (e.g., New Business, Policy Change, etc.).
-    2. Generate 5 detailed test cases.
+    2. Generate detailed test cases.
     3. Each test case must include:
     - Test Case Number (1, 2, 3...)
     - A descriptive Title
     - Preconditions
     - Detailed, numbered Steps
     - Expected Results
-    - Module (e.g., Submission, Policy Change)
+    - Transaction Type (e.g., Submission, Policy Change)
     - Status = Draft
     - Test Data (e.g., customer info, product, vehicle)
+    4. Include additional scenarios based on the BRD (both Positive and Negative)
+    5. Include aatleast one of each Transaction types other than Use Case (e.g., Submission, Policy Change, Cancellation, Rewrite, Reinstatement, ....)
 
     Output strict CSV format (comma-separated). Wrap all fields in double quotes, even multiline ones.
     Do NOT include markdown or ``` formatting.
 
     Use the exact headers below:
-    "Test Case Number","Title","Preconditions","Steps","Expected Results","Module","Status","Test Data"
+    "Test Case Number","Title","Preconditions","Steps","Expected Results","Transaction Type","Status","Test Data"
 
     BRD:
     {st.session_state.brd_text}
@@ -143,7 +173,7 @@ if st.session_state.logged_in:
                 df_result = pd.read_csv(io.StringIO(cleaned), quoting=csv.QUOTE_ALL)
                 expected_cols = [
                     "Test Case Number", "Title", "Preconditions", "Steps",
-                    "Expected Results", "Module", "Status", "Test Data"
+                    "Expected Results", "Transaction Type", "Status", "Test Data"
                 ]
                 for col in expected_cols:
                     if col not in df_result.columns:
