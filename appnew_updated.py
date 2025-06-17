@@ -12,7 +12,7 @@ from fpdf import FPDF
 load_dotenv()
 VALID_USERNAME = "Shounak"
 VALID_PASSWORD = "CG1234"
-GOOGLE_API_KEY = "AIzaSyDzbx48T6HYPTmJm-LvIin-9BrVZ_6z6-s"
+GOOGLE_API_KEY = "XXXXXXXXXXX"
 
 # --- Streamlit Config ---
 st.set_page_config(page_title="GenAI Test Case Generator", layout="centered")
